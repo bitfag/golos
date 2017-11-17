@@ -2,7 +2,7 @@
 
 [![Build Status](https://travis-ci.org/GolosChain/golos.svg?branch=master)](https://travis-ci.org/GolosChain/golos)
 
-Golos is an experimental Proof of Work blockchain with an unproven consensus
+Golos is an experimental blockchain with an unproven Delegated Proof of Stake consensus
 algorithm.
 
 # No Support & No Warranty

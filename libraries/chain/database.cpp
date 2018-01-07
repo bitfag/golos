@@ -2420,12 +2420,25 @@ namespace steemit {
             return uint128_t(uint64_t(2000000000000ll)); // looking good for posters
         }
 
-        uint128_t database::calculate_vshares(uint128_t rshares) const {
+        uint128_t database::calculate_vshares_quadratic(uint128_t rshares) const {
             auto s = get_content_constant_s();
             return (rshares + s) * (rshares + s) - s * s;
         }
 
-/**
+        uint128_t database::calculate_vshares_linear(uint128_t rshares) const {
+            return rshares;
+        }
+
+        uint128_t database::calculate_vshares(uint128_t rshares) const {
+            if (has_hardfork(STEEMIT_HARDFORK_0_16__AUTHORREWARDS_1)) {
+                return calculate_vshares_linear(rshares);
+            } else {
+                return calculate_vshares_quadratic(rshares);
+            }
+        }
+
+
+        /**
  *  Iterates over all conversion requests with a conversion date before
  *  the head block time and then converts them to/from steem/sbd at the
  *  current median price feed history price times the premium
@@ -4008,7 +4021,7 @@ namespace steemit {
             _hardfork_versions[STEEMIT_HARDFORK_0_4] = STEEMIT_HARDFORK_0_4_VERSION;
             FC_ASSERT(STEEMIT_HARDFORK_0_5 ==
                       5, "Invalid hardfork configuration");
-            _hardfork_times[STEEMIT_HARDFORK_0_5] = fc::time_point_sec(STEEMIT_HARDFORK_0_5_TIME);
+            _hardfork_times[STEEMIT_HARDFORK_0_5] = fvalidate_block_headerc::time_point_sec(STEEMIT_HARDFORK_0_5_TIME);
             _hardfork_versions[STEEMIT_HARDFORK_0_5] = STEEMIT_HARDFORK_0_5_VERSION;
             FC_ASSERT(STEEMIT_HARDFORK_0_6 ==
                       6, "Invalid hardfork configuration");
@@ -4054,6 +4067,12 @@ namespace steemit {
                       16, "Invalid hardfork configuration");
             _hardfork_times[STEEMIT_HARDFORK_0_16] = fc::time_point_sec(STEEMIT_HARDFORK_0_16_TIME);
             _hardfork_versions[STEEMIT_HARDFORK_0_16] = STEEMIT_HARDFORK_0_16_VERSION;
+
+            FC_ASSERT(STEEMIT_HARDFORK_0_16_5 ==
+                          17,
+                      "Invalid hardfork configuration");
+            _hardfork_times[STEEMIT_HARDFORK_0_16_5] = fc::time_point_sec(STEEMIT_HARDFORK_0_16_5_TIME);
+            _hardfork_versions[STEEMIT_HARDFORK_0_16_5] = STEEMIT_HARDFORK_0_16_5_VERSION;
 
 
             const auto &hardforks = get_hardfork_property_object();
@@ -4260,6 +4279,8 @@ namespace steemit {
                             auth.posting = authority(1, public_key_type("GLS8hLtc7rC59Ed7uNVVTXtF578pJKQwMfdTvuzYLwUi8GkNTh5F6"), 1);
                         });
                     }
+                    break;
+                case STEEMIT_HARDFORK_0_16_5:
                     break;
                 default:
                     break;

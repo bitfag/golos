@@ -71,6 +71,20 @@ namespace steemit {
             return v;
         }
 
+        inline uint128_t _get_content_constant_s() {
+            return uint128_t(uint64_t(2000000000000ll)); // looking good for posters
+        }
+
+
+        inline uint128_t calculate_vshares_quadratic(uint128_t rshares) {
+            auto s = _get_content_constant_s();
+            return (rshares + s) * (rshares + s) - s * s;
+        }
+
+        inline uint128_t calculate_vshares_linear(uint128_t rshares) {
+            return rshares;
+        }
+
         class database_impl {
         public:
             database_impl(database &self);
@@ -2417,15 +2431,20 @@ namespace steemit {
         }
 
         uint128_t database::get_content_constant_s() const {
-            return uint128_t(uint64_t(2000000000000ll)); // looking good for posters
+            return _get_content_constant_s();
         }
 
-        uint128_t database::calculate_vshares(uint128_t rshares) const {
-            auto s = get_content_constant_s();
-            return (rshares + s) * (rshares + s) - s * s;
+        uint128_t database::calculate_vshares(uint128_t rshares) const
+        {
+            if (has_hardfork(STEEMIT_HARDFORK_0_17__AUTHORREWARDS_1)) {
+                return calculate_vshares_linear(rshares);
+            } else {
+                return calculate_vshares_quadratic(rshares);
+            }
         }
 
-/**
+
+        /**
  *  Iterates over all conversion requests with a conversion date before
  *  the head block time and then converts them to/from steem/sbd at the
  *  current median price feed history price times the premium
@@ -4055,6 +4074,12 @@ namespace steemit {
             _hardfork_times[STEEMIT_HARDFORK_0_16] = fc::time_point_sec(STEEMIT_HARDFORK_0_16_TIME);
             _hardfork_versions[STEEMIT_HARDFORK_0_16] = STEEMIT_HARDFORK_0_16_VERSION;
 
+            FC_ASSERT(STEEMIT_HARDFORK_0_17 ==
+                          17,
+                      "Invalid hardfork configuration");
+            _hardfork_times[STEEMIT_HARDFORK_0_17] = fc::time_point_sec(STEEMIT_HARDFORK_0_17_TIME);
+            _hardfork_versions[STEEMIT_HARDFORK_0_17] = STEEMIT_HARDFORK_0_17_VERSION;
+
 
             const auto &hardforks = get_hardfork_property_object();
             FC_ASSERT(hardforks.last_hardfork <=
@@ -4260,6 +4285,10 @@ namespace steemit {
                             auth.posting = authority(1, public_key_type("GLS8hLtc7rC59Ed7uNVVTXtF578pJKQwMfdTvuzYLwUi8GkNTh5F6"), 1);
                         });
                     }
+                    break;
+                case STEEMIT_HARDFORK_0_17:
+                    //reset all rshares
+                    adjust_rewards_hf17();
                     break;
                 default:
                     break;
@@ -4474,6 +4503,33 @@ namespace steemit {
                     ++cat_itr;
                 }
 
+            }
+            FC_CAPTURE_AND_RETHROW()
+        }
+
+        void database::adjust_rewards_hf17()
+        {
+            try
+            {
+                //reset total_reward_shares to 0 and update it later
+                modify(get_dynamic_global_properties(), [&](dynamic_global_property_object &d) {
+                    d.total_reward_shares2 = 0;
+                });
+
+                //get all comments and reset children rshares2, updaste it later
+                const auto &comments = get_index<comment_index>().indices();
+                for (const auto &comment : comments) {
+                    modify(comment, [&](comment_object &c) {
+                        c.children_rshares2 = 0;
+                    });
+                }
+
+                //recalculate rshares
+                for (const auto &c : comments) {
+                    if (c.net_rshares.value > 0) {
+                        adjust_rshares2(c, 0, calculate_vshares_linear(c.net_rshares.value));
+                    }
+                }
             }
             FC_CAPTURE_AND_RETHROW()
         }

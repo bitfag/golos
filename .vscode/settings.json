@@ -1,0 +1,15 @@
+{
+    "gotoSymbolStack.currentStackPosition": 0,
+    "gotoSymbolStack.maxStackPosition": 0,
+    "gotoSymbolStack.filePositionInfo": [],
+    "files.associations": {
+        "array": "cpp",
+        "functional": "cpp",
+        "future": "cpp",
+        "tuple": "cpp",
+        "utility": "cpp",
+        "ratio": "cpp",
+        "system_error": "cpp",
+        "type_traits": "cpp"
+    }
+}

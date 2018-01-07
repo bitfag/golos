@@ -2054,7 +2054,7 @@ namespace steemit {
 #endif
 
                         modify(cat, [&](category_object &c) {
-                            c.total_payouts += total_payout;
+                            c.total_payouts += total_payout;ам
                         });
 
                     }
@@ -4021,7 +4021,7 @@ namespace steemit {
             _hardfork_versions[STEEMIT_HARDFORK_0_4] = STEEMIT_HARDFORK_0_4_VERSION;
             FC_ASSERT(STEEMIT_HARDFORK_0_5 ==
                       5, "Invalid hardfork configuration");
-            _hardfork_times[STEEMIT_HARDFORK_0_5] = fvalidate_block_headerc::time_point_sec(STEEMIT_HARDFORK_0_5_TIME);
+            _hardfork_times[STEEMIT_HARDFORK_0_5] = fc::time_point_sec(STEEMIT_HARDFORK_0_5_TIME);
             _hardfork_versions[STEEMIT_HARDFORK_0_5] = STEEMIT_HARDFORK_0_5_VERSION;
             FC_ASSERT(STEEMIT_HARDFORK_0_6 ==
                       6, "Invalid hardfork configuration");

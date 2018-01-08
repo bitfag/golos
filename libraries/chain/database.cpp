@@ -71,6 +71,20 @@ namespace steemit {
             return v;
         }
 
+        inline uint128_t get_content_constant_s() {
+            return uint128_t(uint64_t(2000000000000ll)); // looking good for posters
+        }
+
+
+        inline uint128_t calculate_vshares_quadratic(uint128_t rshares) {
+            auto s = get_content_constant_s();
+            return (rshares + s) * (rshares + s) - s * s;
+        }
+
+        inline uint128_t calculate_vshares_linear(uint128_t rshares) {
+            return rshares;
+        }
+
         class database_impl {
         public:
             database_impl(database &self);
@@ -2054,7 +2068,7 @@ namespace steemit {
 #endif
 
                         modify(cat, [&](category_object &c) {
-                            c.total_payouts += total_payout;ам
+                            c.total_payouts += total_payout;
                         });
 
                     }
@@ -2417,20 +2431,12 @@ namespace steemit {
         }
 
         uint128_t database::get_content_constant_s() const {
-            return uint128_t(uint64_t(2000000000000ll)); // looking good for posters
+            return get_content_constant_s();
         }
 
-        uint128_t database::calculate_vshares_quadratic(uint128_t rshares) const {
-            auto s = get_content_constant_s();
-            return (rshares + s) * (rshares + s) - s * s;
-        }
-
-        uint128_t database::calculate_vshares_linear(uint128_t rshares) const {
-            return rshares;
-        }
-
-        uint128_t database::calculate_vshares(uint128_t rshares) const {
-            if (has_hardfork(STEEMIT_HARDFORK_0_16__AUTHORREWARDS_1)) {
+        uint128_t database::calculate_vshares(uint128_t rshares) const
+        {
+            if (has_hardfork(STEEMIT_HARDFORK_0_17__AUTHORREWARDS_1)) {
                 return calculate_vshares_linear(rshares);
             } else {
                 return calculate_vshares_quadratic(rshares);
@@ -4068,11 +4074,11 @@ namespace steemit {
             _hardfork_times[STEEMIT_HARDFORK_0_16] = fc::time_point_sec(STEEMIT_HARDFORK_0_16_TIME);
             _hardfork_versions[STEEMIT_HARDFORK_0_16] = STEEMIT_HARDFORK_0_16_VERSION;
 
-            FC_ASSERT(STEEMIT_HARDFORK_0_16_5 ==
+            FC_ASSERT(STEEMIT_HARDFORK_0_17 ==
                           17,
                       "Invalid hardfork configuration");
-            _hardfork_times[STEEMIT_HARDFORK_0_16_5] = fc::time_point_sec(STEEMIT_HARDFORK_0_16_5_TIME);
-            _hardfork_versions[STEEMIT_HARDFORK_0_16_5] = STEEMIT_HARDFORK_0_16_5_VERSION;
+            _hardfork_times[STEEMIT_HARDFORK_0_17] = fc::time_point_sec(STEEMIT_HARDFORK_0_17_TIME);
+            _hardfork_versions[STEEMIT_HARDFORK_0_17] = STEEMIT_HARDFORK_0_17_VERSION;
 
 
             const auto &hardforks = get_hardfork_property_object();
@@ -4280,7 +4286,7 @@ namespace steemit {
                         });
                     }
                     break;
-                case STEEMIT_HARDFORK_0_16_5:
+                case STEEMIT_HARDFORK_0_17:
                     break;
                 default:
                     break;

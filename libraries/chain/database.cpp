@@ -71,13 +71,13 @@ namespace steemit {
             return v;
         }
 
-        inline uint128_t get_content_constant_s() {
+        inline uint128_t _get_content_constant_s() {
             return uint128_t(uint64_t(2000000000000ll)); // looking good for posters
         }
 
 
         inline uint128_t calculate_vshares_quadratic(uint128_t rshares) {
-            auto s = get_content_constant_s();
+            auto s = _get_content_constant_s();
             return (rshares + s) * (rshares + s) - s * s;
         }
 
@@ -2431,7 +2431,7 @@ namespace steemit {
         }
 
         uint128_t database::get_content_constant_s() const {
-            return get_content_constant_s();
+            return _get_content_constant_s();
         }
 
         uint128_t database::calculate_vshares(uint128_t rshares) const

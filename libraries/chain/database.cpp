@@ -4287,6 +4287,8 @@ namespace steemit {
                     }
                     break;
                 case STEEMIT_HARDFORK_0_17:
+                    //reset all rshares
+                    ajust_rewards_hf17();
                     break;
                 default:
                     break;
@@ -4501,6 +4503,33 @@ namespace steemit {
                     ++cat_itr;
                 }
 
+            }
+            FC_CAPTURE_AND_RETHROW()
+        }
+
+        void database::ajust_rewards_hf17()
+        {
+            try
+            {
+                //reset total_reward_shares to 0 and update it later
+                modify(get_dynamic_global_properties(), [&](dynamic_global_property_object &d) {
+                    d.total_reward_shares2 = 0;
+                });
+
+                //get all comments and reset children rshares2, updaste it later
+                const auto &comments = get_index<comment_index>().indices();
+                for (const auto &comment : comments) {
+                    modify(comment, [&](comment_object &c) {
+                        c.children_rshares2 = 0;
+                    });
+                }
+
+                //recalculate rshares
+                for (const auto &c : comments) {
+                    if (c.net_rshares.value > 0) {
+                        adjust_rshares2(c, 0, calculate_vshares(c.net_rshares.value));
+                    }
+                }
             }
             FC_CAPTURE_AND_RETHROW()
         }

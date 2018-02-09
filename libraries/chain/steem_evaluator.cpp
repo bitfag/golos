@@ -1306,35 +1306,39 @@ namespace steemit {
                                 cv.weight = static_cast<uint64_t>( rshares3 /
                                                                    total2 );
                             } else {// cv.weight = W(R_1) - W(R_0)
-                                if (_db.has_hardfork(STEEMIT_HARDFORK_0_1)) {
+                                if (_db.has_hardfork(STEEMIT_HARDFORK_0_17__AUTHORREWARDS_1)) {
+                                        uint64_t old_weight = old_vote_rshares.value;
+                                        uint64_t new_weight = comment.vote_rshares.value;
+                                        cv.weight = new_weight - old_weight;
+                                } else if (_db.has_hardfork(STEEMIT_HARDFORK_0_1)) {
                                     uint64_t old_weight = (
-                                            (std::numeric_limits<uint64_t>::max() *
-                                             fc::uint128_t(old_vote_rshares.value)) /
-                                            (2 * _db.get_content_constant_s() +
-                                             old_vote_rshares.value)).to_uint64();
+                                        (std::numeric_limits<uint64_t>::max() *
+                                                            fc::uint128_t(old_vote_rshares.value)) /
+                                                            (2 * _db.get_content_constant_s() +
+                                                            old_vote_rshares.value)).to_uint64();
                                     uint64_t new_weight = (
-                                            (std::numeric_limits<uint64_t>::max() *
-                                             fc::uint128_t(comment.vote_rshares.value)) /
-                                            (2 * _db.get_content_constant_s() +
-                                             comment.vote_rshares.value)).to_uint64();
+                                        (std::numeric_limits<uint64_t>::max() *
+                                                            fc::uint128_t(comment.vote_rshares.value)) /
+                                                            (2 * _db.get_content_constant_s() +
+                                                            comment.vote_rshares.value)).to_uint64();
                                     cv.weight = new_weight - old_weight;
                                 } else {
                                     uint64_t old_weight = (
-                                            (std::numeric_limits<uint64_t>::max() *
-                                             fc::uint128_t(10000 *
-                                                           old_vote_rshares.value)) /
-                                            (2 * _db.get_content_constant_s() +
-                                             (10000 *
-                                              old_vote_rshares.value))).to_uint64();
+                                        (std::numeric_limits<uint64_t>::max() *
+                                                            fc::uint128_t(10000 *
+                                                                            old_vote_rshares.value)) /
+                                                            (2 * _db.get_content_constant_s() +
+                                                            (10000 * 
+                                                                old_vote_rshares.value))).to_uint64();
                                     uint64_t new_weight = (
-                                            (std::numeric_limits<uint64_t>::max() *
-                                             fc::uint128_t(10000 *
-                                                           comment.vote_rshares.value)) /
-                                            (2 * _db.get_content_constant_s() +
-                                             (10000 *
-                                              comment.vote_rshares.value))).to_uint64();
+                                        (std::numeric_limits<uint64_t>::max() *
+                                                            fc::uint128_t(10000 *
+                                                                            comment.vote_rshares.value)) /
+                                                            (2 * _db.get_content_constant_s() +
+                                                            (10000 *
+                                                                comment.vote_rshares.value))).to_uint64();
                                     cv.weight = new_weight - old_weight;
-                                }
+                                    }
                             }
 
                             max_vote_weight = cv.weight;

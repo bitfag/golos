@@ -479,7 +479,7 @@ namespace steemit {
 
             void perform_vesting_share_split(uint32_t magnitude);
 
-            void ajust_rewards_hf17();
+            void adjust_rewards_hf17();
 
             void retally_comment_children();
 

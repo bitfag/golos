@@ -10,6 +10,12 @@
         "utility": "cpp",
         "ratio": "cpp",
         "system_error": "cpp",
-        "type_traits": "cpp"
+        "type_traits": "cpp",
+        "initializer_list": "cpp",
+        "chrono": "cpp",
+        "limits": "cpp",
+        "*.ipp": "cpp",
+        "thread": "cpp",
+        "*.tcc": "cpp"
     }
 }

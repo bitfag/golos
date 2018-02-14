@@ -517,7 +517,7 @@ BOOST_FIXTURE_TEST_SUITE(operation_tests, clean_database_fixture)
             BOOST_REQUIRE(bob_comment.net_rshares.value == 0);
             BOOST_REQUIRE(bob_comment.abs_rshares.value == 0);
             BOOST_REQUIRE(
-                    bob_comment.cashout_time == fc::time_point_sec::maximum());
+                bob_comment.cashout_time == bob_comment.created + STEEMIT_CASHOUT_WINDOW_SECONDS);
             BOOST_REQUIRE(bob_comment.root_comment == alice_comment.id);
             validate_database();
 
@@ -546,7 +546,7 @@ BOOST_FIXTURE_TEST_SUITE(operation_tests, clean_database_fixture)
             BOOST_REQUIRE(sam_comment.net_rshares.value == 0);
             BOOST_REQUIRE(sam_comment.abs_rshares.value == 0);
             BOOST_REQUIRE(
-                    sam_comment.cashout_time == fc::time_point_sec::maximum());
+                sam_comment.cashout_time == sam_comment.created + STEEMIT_CASHOUT_WINDOW_SECONDS);
             BOOST_REQUIRE(sam_comment.root_comment == alice_comment.id);
             validate_database();
 
@@ -739,8 +739,7 @@ BOOST_FIXTURE_TEST_SUITE(operation_tests, clean_database_fixture)
                               (old_voting_power - alice.voting_power) /
                               STEEMIT_100_PERCENT);
                 BOOST_REQUIRE(alice_comment.cashout_time ==
-                              db.head_block_time() +
-                              fc::seconds(STEEMIT_CASHOUT_WINDOW_SECONDS));
+                              alice_comment.created + STEEMIT_CASHOUT_WINDOW_SECONDS);
                 BOOST_REQUIRE(itr->rshares ==
                               alice.vesting_shares.amount.value *
                               (old_voting_power - alice.voting_power) /
@@ -788,14 +787,12 @@ BOOST_FIXTURE_TEST_SUITE(operation_tests, clean_database_fixture)
                               (old_voting_power -
                                db.get_account("alice").voting_power) /
                               STEEMIT_100_PERCENT);
-                BOOST_REQUIRE(bob_comment.cashout_time == db.head_block_time() +
-                                                          fc::seconds(STEEMIT_CASHOUT_WINDOW_SECONDS));
+                BOOST_REQUIRE(bob_comment.cashout_time == bob_comment.created + STEEMIT_CASHOUT_WINDOW_SECONDS);
                 BOOST_REQUIRE(itr != vote_idx.end());
                 validate_database();
 
                 BOOST_TEST_MESSAGE("--- Test payout time extension on vote");
 
-                uint128_t old_cashout_time = db.get_comment("alice", string("foo")).cashout_time.sec_since_epoch();
                 old_voting_power = db.get_account("bob").voting_power;
                 auto old_abs_rshares = db.get_comment("alice", string("foo")).abs_rshares.value;
 
@@ -822,10 +819,6 @@ BOOST_FIXTURE_TEST_SUITE(operation_tests, clean_database_fixture)
                 uint128_t new_cashout_time =
                         db.head_block_time().sec_since_epoch() +
                         STEEMIT_CASHOUT_WINDOW_SECONDS;
-                const auto &bob_vote_abs_rshares = ((uint128_t(
-                        new_bob.vesting_shares.amount.value + max_vote_denom -
-                        1) * (STEEMIT_100_PERCENT / max_vote_denom)) /
-                                                    (STEEMIT_100_PERCENT)).to_uint64();
 
                 BOOST_REQUIRE(new_bob.voting_power == STEEMIT_100_PERCENT -
                                                       ((STEEMIT_100_PERCENT +
@@ -836,11 +829,7 @@ BOOST_FIXTURE_TEST_SUITE(operation_tests, clean_database_fixture)
                               new_bob.vesting_shares.amount.value *
                               (old_voting_power - new_bob.voting_power) /
                               STEEMIT_100_PERCENT);
-                BOOST_REQUIRE_EQUAL(new_alice_comment.cashout_time.sec_since_epoch(),
-                        ((old_cashout_time * old_abs_rshares +
-                          new_cashout_time * bob_vote_abs_rshares)
-                         /
-                         (old_abs_rshares + bob_vote_abs_rshares)).to_uint64());
+                BOOST_REQUIRE(new_alice_comment.cashout_time == new_alice_comment.created + STEEMIT_CASHOUT_WINDOW_SECONDS);
                 BOOST_REQUIRE(itr != vote_idx.end());
                 validate_database();
 
@@ -849,7 +838,6 @@ BOOST_FIXTURE_TEST_SUITE(operation_tests, clean_database_fixture)
                 const auto &new_sam = db.get_account("sam");
                 const auto &new_bob_comment = db.get_comment("bob", string("foo"));
 
-                old_cashout_time = new_bob_comment.cashout_time.sec_since_epoch();
                 old_abs_rshares = new_bob_comment.abs_rshares.value;
 
                 op.weight = -1 * STEEMIT_100_PERCENT / 2;
@@ -879,19 +867,13 @@ BOOST_FIXTURE_TEST_SUITE(operation_tests, clean_database_fixture)
                               old_abs_rshares - sam_weight);
                 BOOST_REQUIRE(new_bob_comment.abs_rshares.value ==
                               old_abs_rshares + sam_weight);
-                BOOST_REQUIRE_EQUAL(new_bob_comment.cashout_time.sec_since_epoch(),
-                        ((old_cashout_time * old_abs_rshares +
-                          new_cashout_time * sam_weight)
-                         / (old_abs_rshares + sam_weight)).to_uint64());
+                BOOST_REQUIRE(new_bob_comment.cashout_time == new_bob_comment.created + STEEMIT_CASHOUT_WINDOW_SECONDS);
                 BOOST_REQUIRE(itr != vote_idx.end());
                 validate_database();
 
                 BOOST_TEST_MESSAGE("--- Test nested voting on nested comments");
 
                 old_abs_rshares = new_alice_comment.children_abs_rshares.value;
-                old_cashout_time = new_alice_comment.cashout_time.sec_since_epoch();
-                new_cashout_time = db.head_block_time().sec_since_epoch() +
-                                   STEEMIT_CASHOUT_WINDOW_SECONDS;
                 int64_t regenerated_power = (STEEMIT_100_PERCENT *
                                              (db.head_block_time() -
                                               db.get_account("alice").last_vote_time).to_seconds()) /
@@ -932,11 +914,7 @@ BOOST_FIXTURE_TEST_SUITE(operation_tests, clean_database_fixture)
                         db.get_comment("alice", string("foo")).children_rshares2 ==
                         db.get_comment("sam", string("foo")).children_rshares2 +
                         old_rshares2);
-                BOOST_REQUIRE(
-                        db.get_comment("alice", string("foo")).cashout_time.sec_since_epoch() ==
-                        ((old_cashout_time * old_abs_rshares +
-                          new_cashout_time * new_rshares)
-                         / (old_abs_rshares + new_rshares)).to_uint64());
+                BOOST_REQUIRE(db.get_comment("alice", string("foo")).cashout_time == db.get_comment("alice", string("foo")).created + STEEMIT_CASHOUT_WINDOW_SECONDS);
 
                 validate_database();
 
@@ -950,9 +928,6 @@ BOOST_FIXTURE_TEST_SUITE(operation_tests, clean_database_fixture)
                 auto old_vote_rshares = alice_bob_vote->rshares;
                 auto old_net_rshares = new_bob_comment.net_rshares.value;
                 old_abs_rshares = new_bob_comment.abs_rshares.value;
-                old_cashout_time = new_bob_comment.cashout_time.sec_since_epoch();
-                new_cashout_time = db.head_block_time().sec_since_epoch() +
-                                   STEEMIT_CASHOUT_WINDOW_SECONDS;
                 used_power =
                         ((STEEMIT_1_PERCENT * 25 * (new_alice.voting_power) /
                           STEEMIT_100_PERCENT) + max_vote_denom - 1) /
@@ -978,10 +953,7 @@ BOOST_FIXTURE_TEST_SUITE(operation_tests, clean_database_fixture)
                               old_net_rshares - old_vote_rshares + new_rshares);
                 BOOST_REQUIRE(new_bob_comment.abs_rshares ==
                               old_abs_rshares + new_rshares);
-                BOOST_REQUIRE_EQUAL(new_bob_comment.cashout_time.sec_since_epoch(),
-                        ((old_cashout_time * old_abs_rshares +
-                          new_cashout_time * new_rshares)
-                         / (old_abs_rshares + new_rshares)).to_uint64());
+                BOOST_REQUIRE(new_bob_comment.cashout_time == new_bob_comment.created + STEEMIT_CASHOUT_WINDOW_SECONDS);
                 BOOST_REQUIRE(alice_bob_vote->rshares == new_rshares);
                 BOOST_REQUIRE(
                         alice_bob_vote->last_update == db.head_block_time());
@@ -998,9 +970,6 @@ BOOST_FIXTURE_TEST_SUITE(operation_tests, clean_database_fixture)
                 old_vote_rshares = new_rshares;
                 old_net_rshares = new_bob_comment.net_rshares.value;
                 old_abs_rshares = new_bob_comment.abs_rshares.value;
-                old_cashout_time = new_bob_comment.cashout_time.sec_since_epoch();
-                new_cashout_time = db.head_block_time().sec_since_epoch() +
-                                   STEEMIT_CASHOUT_WINDOW_SECONDS;
                 used_power = (uint64_t(STEEMIT_1_PERCENT) * 75 *
                               uint64_t(alice_voting_power)) /
                              STEEMIT_100_PERCENT;
@@ -1023,12 +992,7 @@ BOOST_FIXTURE_TEST_SUITE(operation_tests, clean_database_fixture)
                               old_net_rshares - old_vote_rshares - new_rshares);
                 BOOST_REQUIRE(new_bob_comment.abs_rshares ==
                               old_abs_rshares + new_rshares);
-                BOOST_REQUIRE(new_bob_comment.cashout_time ==
-                              fc::time_point_sec((
-                                      (old_cashout_time * old_abs_rshares +
-                                       new_cashout_time * new_rshares) /
-                                      (old_abs_rshares +
-                                       new_rshares)).to_uint64()));
+                BOOST_REQUIRE(new_bob_comment.cashout_time == new_bob_comment.created + STEEMIT_CASHOUT_WINDOW_SECONDS);
                 BOOST_REQUIRE(alice_bob_vote->rshares == -1 * new_rshares);
                 BOOST_REQUIRE(
                         alice_bob_vote->last_update == db.head_block_time());
@@ -1045,7 +1009,6 @@ BOOST_FIXTURE_TEST_SUITE(operation_tests, clean_database_fixture)
                 old_vote_rshares = alice_bob_vote->rshares;
                 old_net_rshares = new_bob_comment.net_rshares.value;
                 old_abs_rshares = new_bob_comment.abs_rshares.value;
-                old_cashout_time = new_bob_comment.cashout_time.sec_since_epoch();
 
                 op.weight = 0;
                 tx.operations.clear();
@@ -1058,8 +1021,7 @@ BOOST_FIXTURE_TEST_SUITE(operation_tests, clean_database_fixture)
                 BOOST_REQUIRE(new_bob_comment.net_rshares ==
                               old_net_rshares - old_vote_rshares);
                 BOOST_REQUIRE(new_bob_comment.abs_rshares == old_abs_rshares);
-                BOOST_REQUIRE(new_bob_comment.cashout_time.sec_since_epoch() ==
-                              old_cashout_time.to_uint64());
+                BOOST_REQUIRE(new_bob_comment.cashout_time == new_bob_comment.created + STEEMIT_CASHOUT_WINDOW_SECONDS);
                 BOOST_REQUIRE(alice_bob_vote->rshares == 0);
                 BOOST_REQUIRE(
                         alice_bob_vote->last_update == db.head_block_time());
@@ -1094,15 +1056,15 @@ BOOST_FIXTURE_TEST_SUITE(operation_tests, clean_database_fixture)
                 db.push_transaction(tx, 0);
                 validate_database();
 
-                BOOST_TEST_MESSAGE("--- Test success with a new vote within lockout period");
+                BOOST_TEST_MESSAGE("--- Test failure with a new vote within lockout period");
 
                 op.weight = STEEMIT_100_PERCENT;
-                op.voter = "sam";
+                op.voter = "dave";
                 tx.operations.clear();
                 tx.signatures.clear();
                 tx.operations.push_back(op);
-                tx.sign(sam_private_key, db.get_chain_id());
-                db.push_transaction(tx, 0);
+                tx.sign(dave_private_key, db.get_chain_id());
+                STEEMIT_REQUIRE_THROW(db.push_transaction(tx, 0), fc::exception);
                 validate_database();
             }
         }

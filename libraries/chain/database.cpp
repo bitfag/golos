@@ -71,6 +71,20 @@ namespace steemit {
             return v;
         }
 
+        inline uint128_t _get_content_constant_s() {
+            return uint128_t(uint64_t(2000000000000ll)); // looking good for posters
+        }
+
+
+        inline uint128_t calculate_vshares_quadratic(uint128_t rshares) {
+            auto s = _get_content_constant_s();
+            return (rshares + s) * (rshares + s) - s * s;
+        }
+
+        inline uint128_t calculate_vshares_linear(uint128_t rshares) {
+            return rshares;
+        }
+
         class database_impl {
         public:
             database_impl(database &self);
@@ -2082,7 +2096,9 @@ namespace steemit {
                     c.total_vote_weight = 0;
                     c.max_cashout_time = fc::time_point_sec::maximum();
 
-                    if (c.parent_author == STEEMIT_ROOT_POST_PARENT) {
+                    if (has_hardfork(STEEMIT_HARDFORK_0_17_SINGLE_CASHOUT_WINDOW)) {
+                        c.cashout_time = fc::time_point_sec::maximum();
+                    } else if (c.parent_author == STEEMIT_ROOT_POST_PARENT) {
                         if (has_hardfork(STEEMIT_HARDFORK_0_12__177) &&
                             c.last_payout == fc::time_point_sec::min()) {
                             c.cashout_time = head_block_time() +
@@ -2144,13 +2160,17 @@ namespace steemit {
             auto current = cidx.begin();
             while (current != cidx.end() &&
                    current->cashout_time <= head_block_time()) {
-                auto itr = com_by_root.lower_bound(current->root_comment);
-                while (itr != com_by_root.end() &&
+                if (has_hardfork(STEEMIT_HARDFORK_0_17_SINGLE_CASHOUT_WINDOW)) {
+                    cashout_comment_helper(*current);
+                } else {
+                    auto itr = com_by_root.lower_bound(current->root_comment);
+                    while (itr != com_by_root.end() &&
                        itr->root_comment == current->root_comment) {
-                    const auto &comment = *itr;
-                    ++itr;
-                    cashout_comment_helper(comment);
-                    ++count;
+                        const auto &comment = *itr;
+                        ++itr;
+                        cashout_comment_helper(comment);
+                        ++count;
+                    }
                 }
                 current = cidx.begin();
             }
@@ -2417,15 +2437,20 @@ namespace steemit {
         }
 
         uint128_t database::get_content_constant_s() const {
-            return uint128_t(uint64_t(2000000000000ll)); // looking good for posters
+            return _get_content_constant_s();
         }
 
-        uint128_t database::calculate_vshares(uint128_t rshares) const {
-            auto s = get_content_constant_s();
-            return (rshares + s) * (rshares + s) - s * s;
+        uint128_t database::calculate_vshares(uint128_t rshares) const
+        {
+            if (has_hardfork(STEEMIT_HARDFORK_0_17__AUTHORREWARDS_1)) {
+                return calculate_vshares_linear(rshares);
+            } else {
+                return calculate_vshares_quadratic(rshares);
+            }
         }
 
-/**
+
+        /**
  *  Iterates over all conversion requests with a conversion date before
  *  the head block time and then converts them to/from steem/sbd at the
  *  current median price feed history price times the premium
@@ -4055,6 +4080,12 @@ namespace steemit {
             _hardfork_times[STEEMIT_HARDFORK_0_16] = fc::time_point_sec(STEEMIT_HARDFORK_0_16_TIME);
             _hardfork_versions[STEEMIT_HARDFORK_0_16] = STEEMIT_HARDFORK_0_16_VERSION;
 
+            FC_ASSERT(STEEMIT_HARDFORK_0_17 ==
+                          17,
+                      "Invalid hardfork configuration");
+            _hardfork_times[STEEMIT_HARDFORK_0_17] = fc::time_point_sec(STEEMIT_HARDFORK_0_17_TIME);
+            _hardfork_versions[STEEMIT_HARDFORK_0_17] = STEEMIT_HARDFORK_0_17_VERSION;
+
 
             const auto &hardforks = get_hardfork_property_object();
             FC_ASSERT(hardforks.last_hardfork <=
@@ -4202,7 +4233,7 @@ namespace steemit {
                                 fc::time_point_sec::maximum()) {
                                 modify(*itr, [&](comment_object &c) {
                                     c.cashout_time = head_block_time() +
-                                                     STEEMIT_CASHOUT_WINDOW_SECONDS;
+                                                     STEEMIT_CASHOUT_WINDOW_SECONDS_PRE_HF17;
                                     c.mode = first_payout;
                                 });
                             }
@@ -4259,6 +4290,51 @@ namespace steemit {
                             auth.active = authority(1, public_key_type("GLS8hLtc7rC59Ed7uNVVTXtF578pJKQwMfdTvuzYLwUi8GkNTh5F6"), 1);
                             auth.posting = authority(1, public_key_type("GLS8hLtc7rC59Ed7uNVVTXtF578pJKQwMfdTvuzYLwUi8GkNTh5F6"), 1);
                         });
+                    }
+                    break;
+                case STEEMIT_HARDFORK_0_17:
+                    //reset all rshares
+                    adjust_rewards_hf17();
+
+                    {   /// SINGLE CACHOUT WINDOW RELATED UPDATE
+                        /*
+                        * For all current comments we will either keep their current cashout time, or extend it to 1 week
+                        * after creation.
+                        *
+                        * We cannot do a simple iteration by cashout time because we are editting cashout time.
+                        * More specifically, we will be adding an explicit cashout time to all comments with parents.
+                        * To find all discussions that have not been paid out we fir iterate over posts by cashout time.
+                        * Before the hardfork these are all root posts. Iterate over all of their children, adding each
+                        * to a specific list. Next, update payout times for all discussions on the root post. This defines
+                        * the min cashout time for each child in the discussion. Then iterate over the children and set
+                        * their cashout time in a similar way, grabbing the root post as their inherent cashout time.
+                        */
+                        const auto &comment_idx = get_index<comment_index, by_cashout_time>();
+                        const auto &by_root_idx = get_index<comment_index, by_root>();
+                        vector<const comment_object *> root_posts;
+                        root_posts.reserve(60000);
+                        vector<const comment_object *> replies;
+                        replies.reserve(100000);
+
+                        for (auto itr = comment_idx.begin(); itr != comment_idx.end() && itr->cashout_time < fc::time_point_sec::maximum(); ++itr) {
+                            root_posts.push_back(&(*itr));
+
+                            for (auto reply_itr = by_root_idx.lower_bound(itr->id); reply_itr != by_root_idx.end() && reply_itr->root_comment == itr->id; ++reply_itr) {
+                                replies.push_back(&(*reply_itr));
+                            }
+                        }
+
+                        for (auto itr : root_posts) {
+                            modify(*itr, [&](comment_object &c) {
+                                c.cashout_time = std::max(c.created + STEEMIT_CASHOUT_WINDOW_SECONDS, c.cashout_time);
+                            });
+                        }
+
+                        for (auto itr : replies) {
+                            modify(*itr, [&](comment_object &c) {
+                                c.cashout_time = std::max(calculate_discussion_payout_time(c), c.created + STEEMIT_CASHOUT_WINDOW_SECONDS);
+                            });
+                        }
                     }
                     break;
                 default:
@@ -4474,6 +4550,33 @@ namespace steemit {
                     ++cat_itr;
                 }
 
+            }
+            FC_CAPTURE_AND_RETHROW()
+        }
+
+        void database::adjust_rewards_hf17()
+        {
+            try
+            {
+                //reset total_reward_shares to 0 and update it later
+                modify(get_dynamic_global_properties(), [&](dynamic_global_property_object &d) {
+                    d.total_reward_shares2 = 0;
+                });
+
+                //get all comments and reset children rshares2, updaste it later
+                const auto &comments = get_index<comment_index>().indices();
+                for (const auto &comment : comments) {
+                    modify(comment, [&](comment_object &c) {
+                        c.children_rshares2 = 0;
+                    });
+                }
+
+                //recalculate rshares
+                for (const auto &c : comments) {
+                    if (c.net_rshares.value > 0) {
+                        adjust_rshares2(c, 0, calculate_vshares_linear(c.net_rshares.value));
+                    }
+                }
             }
             FC_CAPTURE_AND_RETHROW()
         }

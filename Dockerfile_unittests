@@ -34,6 +34,7 @@ ADD . /usr/local/src/golos
 
 RUN \
     cd /usr/local/src/golos && \
+    git submodule update --init --recursive && \
     mkdir build && \
     cd build && \
     cmake \
@@ -43,11 +44,5 @@ RUN \
         -DCLEAR_VOTES=TRUE \
         .. && \
     make -j$(nproc) chain_test && \
-    ./tests/basic_tests && \
-    ./tests/block_tests && \
-    ./tests/live_tests && \
-    ./tests/operation_tests && \
-    ./tests/operation_time_tests && \
-    ./tests/serialization_tests
-
+    ./tests/chain_test
 
